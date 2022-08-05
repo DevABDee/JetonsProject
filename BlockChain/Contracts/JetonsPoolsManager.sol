@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: NO-LICENSE
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.15;
 
@@ -6,7 +6,8 @@ import "./Common/common.sol";
 import "./JetonsDefaultPool.sol";
 
 contract JetonsPoolsManager {
-    address public managerAddress;
+    address public owner;
+    address public factoryAddress;
     address public jackpotPoolAddress;
     address public consolationPoolAddress;
     address public lpAddress;
@@ -28,8 +29,9 @@ contract JetonsPoolsManager {
     // If contract is enabled or not
     bool public enabled;
 
+
     constructor(address jackpotPoolAddr, address consolationPoolAddr, address lpAddr) {
-        managerAddress = msg.sender;
+        owner = msg.sender;
         jackpotPoolAddress = jackpotPoolAddr;
         consolationPoolAddress = consolationPoolAddr;
         lpAddress = lpAddr;
@@ -38,23 +40,28 @@ contract JetonsPoolsManager {
     }
 
     // Change JackpotPool contract address
-    function changeJackpotAddress(address newAddress) public isDisabled onlyManager {
+    function changeJackpotAddress(address newAddress) public isDisabled isOwner {
         jackpotPoolAddress = newAddress;
     }
 
     // Change ConsolationPool contract address
-    function changeConsolationAddress(address newAddress) public isDisabled onlyManager {
+    function changeConsolationAddress(address newAddress) public isDisabled isOwner {
         consolationPoolAddress = newAddress;
     }
 
     // Change Liquidity Pool address
-    function changeLpAddress(address newAddress) public isDisabled onlyManager {
+    function changeLpAddress(address newAddress) public isDisabled isOwner {
         lpAddress = newAddress;
     }
 
     // Enable/Disable manager
-    function toggleEnabled() public onlyManager {
+    function toggleEnabled() public isOwner {
         enabled = !enabled;
+    }
+
+    function setFactoryAddress(address addr) public {
+        require(addr == owner, "Not certified factory.");
+        factoryAddress = msg.sender;
     }
 
     // Get last cached information about the last pool
@@ -64,26 +71,28 @@ contract JetonsPoolsManager {
     }  
 
     // Update last pool info
-    function updateLastPoolInfo(address poolAddr, uint256 poolNumber, uint256 poolPrize, uint256 drawDate) public isLastPool {
-        setLastPoolInfo(poolAddr, poolNumber, poolPrize, drawDate);
+    function updateLastPoolInfo(Pool memory pool) public isLastPool {
+        setLastPoolInfo(pool);
 
         finishedPoolsCount += 1;
     }
 
-    function creaNewDefaultPool(uint[14] memory cfg) public onlyManager {
+    function creaNewDefaultPool(uint[14] memory cfg) public isOwner {
 
-        // Add the pool number
+        // Incrementing the pool number
         cfg[13] = pools.length + 1;
 
-        JetonsDefaultPool defaultPool = new JetonsDefaultPool(managerAddress, jackpotPoolAddress, consolationPoolAddress, lpAddress, cfg);
+        // Calling method from another contract
+        bytes memory payload = abi.encodeWithSignature("creaNewDefaultPool(address,address,address,uint256[14])", jackpotPoolAddress, consolationPoolAddress, lpAddress, cfg);
+        (bool success, bytes memory returnData) = address(factoryAddress).call(payload);
+        require(success);
 
-        Pool memory pool;
-        pool.number = pools.length + 1;
-        pool.poolAddress = address(defaultPool);
+        Pool memory createdPool = abi.decode(returnData, (Pool));
 
-        setLastPoolInfo(pool.poolAddress, pool.number, 0, 0);
+        lastPoolNumber = createdPool.number;
+        lastPoolAddress = createdPool.poolAddress;
 
-        pools.push(pool);
+        pools.push(createdPool);
     }
 
     function getPoolsList() public view returns (Pool[] memory) {
@@ -91,22 +100,27 @@ contract JetonsPoolsManager {
     }
 
     // INTERNAL
-    function setLastPoolInfo(address poolAddr, uint256 poolNumber, uint256 poolPrize, uint256 drawDate) internal {
-        lastPoolNumber = poolNumber;
-        lastPoolDrawDatetime = drawDate;
-        lastPoolPrize = poolPrize;
-        lastPoolAddress = poolAddr;
+    function setLastPoolInfo(Pool memory pool) internal {
+        lastPoolNumber = pool.number;
+        lastPoolDrawDatetime = pool.drawDateTime;
+        lastPoolPrize = pool.totalPrize;
+        lastPoolAddress = pool.poolAddress;
 
         if (lastPoolPrize > biggestPrize) {
             biggestAddress = lastPoolAddress;
             biggestDate = lastPoolDrawDatetime;
             biggestPrize = lastPoolPrize;
         }
-    }
-    
+    }   
+
     // MODIFIERS
-    modifier onlyManager() {
-        assert(msg.sender == managerAddress);
+    modifier isOwner() {
+        require(msg.sender == owner, "Unauthorized: owner expected");
+        _;
+    }
+
+    modifier isOwnerCertified(address addr) {
+        require(owner == addr, "Unauthorized: manager contract expected");
         _;
     }
 

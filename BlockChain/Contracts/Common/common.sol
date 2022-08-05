@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: NO-LICENSE
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.15;
 
@@ -8,7 +8,7 @@ enum State {
     WaitingClaims,
     Finished,
     Cancelled
-} // Pool state
+} 
 
 struct Pool {
     uint256 number;

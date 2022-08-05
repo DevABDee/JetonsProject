@@ -1,12 +1,12 @@
-// SPDX-License-Identifier: NO-LICENSE
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.15;
 
 import "./Common/common.sol";
 
 contract JetonsDefaultPool {
+    address public immutable owner;
     address public immutable factoryAddress;
-    address public immutable managerAddress;
     address public immutable jackpotPoolAddress;
     address public immutable consolationPoolAddress;
     address public immutable lpAddress;
@@ -29,8 +29,8 @@ contract JetonsDefaultPool {
     constructor(address _managerAddress, address _jackpotPoolAddr, address _consolationPoolAddr, address _lpAddress, uint[14] memory cfg) {
 
         // Init params
+        owner = _managerAddress;
         factoryAddress = msg.sender;
-        managerAddress = _managerAddress;
         jackpotPoolAddress = _jackpotPoolAddr;
         consolationPoolAddress = _consolationPoolAddr;
         lpAddress = _lpAddress;
@@ -127,7 +127,7 @@ contract JetonsDefaultPool {
     }
 
     modifier onlyManager() {
-        assert(msg.sender == managerAddress);
+        assert(msg.sender == owner);
         _;
     }
 
