@@ -2,7 +2,8 @@
 
 pragma solidity ^0.8.15;
 
-import './Common/common.sol';
+import "./Common/common.sol";
+import "./JetonsDefaultPool.sol";
 
 contract JetonsPoolsManager {
     address public managerAddress;
@@ -27,11 +28,7 @@ contract JetonsPoolsManager {
     // If contract is enabled or not
     bool public enabled;
 
-    constructor(
-        address jackpotPoolAddr,
-        address consolationPoolAddr,
-        address lpAddr
-    ) {
+    constructor(address jackpotPoolAddr, address consolationPoolAddr, address lpAddr) {
         managerAddress = msg.sender;
         jackpotPoolAddress = jackpotPoolAddr;
         consolationPoolAddress = consolationPoolAddr;
@@ -61,26 +58,40 @@ contract JetonsPoolsManager {
     }
 
     // Get last cached information about the last pool
-    function getLastPoolInfo()
-        public
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256,
-            address
-        )
+    function getLastPoolInfo() public view returns (uint256, uint256, uint256, address)
     {
         return (lastPoolNumber, lastPoolPrize, lastPoolDrawDatetime, lastPoolAddress);
-    }
+    }  
 
     // Update last pool info
-    function updateLastPoolInfo(
-        address poolAddr,
-        uint256 poolNumber,
-        uint256 poolPrize,
-        uint256 drawDate
-    ) public isLastPool {
+    function updateLastPoolInfo(address poolAddr, uint256 poolNumber, uint256 poolPrize, uint256 drawDate) public isLastPool {
+        setLastPoolInfo(poolAddr, poolNumber, poolPrize, drawDate);
+
+        finishedPoolsCount += 1;
+    }
+
+    function creaNewDefaultPool(uint[14] memory cfg) public onlyManager {
+
+        // Add the pool number
+        cfg[13] = pools.length + 1;
+
+        JetonsDefaultPool defaultPool = new JetonsDefaultPool(managerAddress, jackpotPoolAddress, consolationPoolAddress, lpAddress, cfg);
+
+        Pool memory pool;
+        pool.number = pools.length + 1;
+        pool.poolAddress = address(defaultPool);
+
+        setLastPoolInfo(pool.poolAddress, pool.number, 0, 0);
+
+        pools.push(pool);
+    }
+
+    function getPoolsList() public view returns (Pool[] memory) {
+        return pools;
+    }
+
+    // INTERNAL
+    function setLastPoolInfo(address poolAddr, uint256 poolNumber, uint256 poolPrize, uint256 drawDate) internal {
         lastPoolNumber = poolNumber;
         lastPoolDrawDatetime = drawDate;
         lastPoolPrize = poolPrize;
@@ -91,10 +102,8 @@ contract JetonsPoolsManager {
             biggestDate = lastPoolDrawDatetime;
             biggestPrize = lastPoolPrize;
         }
-
-        finishedPoolsCount += 1;
     }
-
+    
     // MODIFIERS
     modifier onlyManager() {
         assert(msg.sender == managerAddress);
